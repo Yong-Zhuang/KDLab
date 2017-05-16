@@ -26,13 +26,14 @@ tf.app.flags.DEFINE_float('weight_init', .1,
                             """weight init for fully connected layers""")
 tf.app.flags.DEFINE_integer('training_epochs', 300,
                             """num of epochs""")
-tf.app.flags.DEFINE_integer('width', 90,
+tf.app.flags.DEFINE_integer('width', 163,
                             """width""")
-tf.app.flags.DEFINE_integer('hight', 70,
+tf.app.flags.DEFINE_integer('hight', 138,
                             """height""")
 
+
 data = np.load('../no_crimes_perday_600_all.npy')
-data = data[:,18:88,58:148]
+#data = data[:,18:88,58:148]
 
 x = tf.placeholder(tf.float32, [None, FLAGS.seq_length, FLAGS.hight, FLAGS.width, 1])
 keep_prob = tf.placeholder("float")
@@ -64,7 +65,7 @@ def RNN(x):
       if i == 0:
         tf.get_variable_scope().reuse_variables()
     # pack them all together 
-    x_unwrap = tf.pack(x_unwrap)
+    x_unwrap = tf.stack(x_unwrap)
     x_unwrap = tf.transpose(x_unwrap, [1,0,2,3,4])
     return x_unwrap
 pred = RNN(x)
@@ -73,8 +74,8 @@ loss = tf.nn.l2_loss(x[:,FLAGS.seq_start+1:,:,:,:] - pred[:,:,:,:,:])
 #tf.scalar_summary('loss', loss)
 tf.summary.scalar('loss', loss)
 # training   
-train_op = tf.train.AdamOptimizer(FLAGS.lr).minimize(loss)
-
+#train_op = tf.train.AdamOptimizer(FLAGS.lr).minimize(loss)
+train_op = tf.train.GradientDescentOptimizer(FLAGS.lr).minimize(loss)
 # List of all Variables
 variables = tf.global_variables()
 
@@ -95,16 +96,15 @@ def iterate_minibatches(inputs, batchsize, shuffle=False):
     for start_idx in range(0, len(indices), batchsize):
         out = []
         if ((start_idx + batchsize)<=len(indices)):
-            print ('++++++111111111111++++++++'+str(start_idx))
+            #print ('++++++111111111111++++++++'+str(start_idx))
             for start in indices[start_idx:start_idx + batchsize]:#(1797, 138, 163)
                 out.append(inputs[start:start+FLAGS.seq_length])
         else:
-            print ('++++++222222222222++++++++'+str(start_idx))
+            #print ('++++++222222222222++++++++'+str(start_idx))
             for start in indices[-batchsize:]:#(1797, 138, 163)
                 out.append(inputs[start:start+FLAGS.seq_length])        
         out = np.array(out)
         yield out.reshape((-1, FLAGS.seq_length, inputs.shape[1], inputs.shape[2],1))  
-        
         
 Xtr = data[:-686]
 Xva = data[-686:-343]
@@ -117,7 +117,7 @@ def train():
         sess.run(init)
         # Summary op
         graph_def = sess.graph.as_graph_def(add_shapes=True)
-        summary_writer = tf.train.SummaryWriter(FLAGS.train_dir, graph_def=graph_def)
+        summary_writer = tf.summary.FileWriter(FLAGS.train_dir, graph_def=graph_def)
         train_loss = [] 
         validation_loss = []  
         minloss = 0
@@ -128,9 +128,7 @@ def train():
             print ('********************training start********************')
             print (Xtr.shape)      
             for batch in iterate_minibatches(Xtr, FLAGS.batch_size, shuffle=True):
-                print ('start batch '+str(train_batches))
                 inputs= batch  
-                print (inputs.shape)
                 _, loss_r =sess.run([train_op,loss], feed_dict={x: inputs, keep_prob:FLAGS.keep_prob})
                 train_err += loss_r
                 train_batches += 1            
@@ -175,16 +173,12 @@ def test():
         saver.restore(sess, save_path)
         #print("Model restored from file: %s" % save_path)
 
-        test_err = 0
-        test_batches = 0
-        start_time = time.time()      
+        test_batches = 0    
         print ('********************testing start********************')
         for batch in iterate_minibatches(Xte, FLAGS.batch_size, shuffle=True):
             inputs= batch  
-            test_err += sess.run(loss, feed_dict={x: inputs, keep_prob:FLAGS.keep_prob})
-            test_batches += 1
-        test_loss.append(test_err)
-        print("  test loss:\t\t{:.6f}".format(test_loss / test_batches))
+            y_p = sess.run(pred, feed_dict={x: inputs, keep_prob:FLAGS.keep_prob})
+            test_batches += 1        
     
 def main(argv=None):  # pylint: disable=unused-argument
   if tf.gfile.Exists(FLAGS.train_dir):
