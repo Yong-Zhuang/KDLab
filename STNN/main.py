@@ -8,7 +8,7 @@ import os
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('train_dir', './model',
+tf.app.flags.DEFINE_string('train_dir', '..../model',
                             """dir to store trained net""")
 tf.app.flags.DEFINE_integer('seq_length', 210,
                             """size of hidden layer""")
